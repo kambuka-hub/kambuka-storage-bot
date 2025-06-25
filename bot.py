@@ -15,10 +15,7 @@ import json
 import os
 
 # === Чтение ключа из переменной окружения ===
-service_key = os.environ.get("SERVICE_KEY")
-if service_key:
-    with open("service_account.json", "w") as f:
-        json.dump(json.loads(service_key), f)
+creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
