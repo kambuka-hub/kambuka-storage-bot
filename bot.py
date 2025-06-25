@@ -20,8 +20,6 @@ creds = Credentials.from_service_account_file("service_account.json", scopes=sco
 client = gspread.authorize(creds)
 sheet = client.open_by_url(SHEET_URL).sheet1
 
-# === Чтение ключа из переменной окружения ===
-creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
