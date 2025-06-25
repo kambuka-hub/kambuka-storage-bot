@@ -21,8 +21,8 @@ if service_key:
         json.dump(json.loads(service_key), f)
 
 # === НАСТРОЙКИ ===
-TOKEN = os.environ.get("BOT_TOKEN")
-SHEET_URL = os.environ.get("SHEET_URL")
+TOKEN = os.environ.get("7825570683:AAGqJkCCKZVNmSt2kbgJj5M6Oh8nkvOHgvE")
+SHEET_URL = os.environ.get("https://docs.google.com/spreadsheets/d/1PZNpn9zYbUrGSvTT8AcsUJkUhOPKmw9EZxi2kh9x7Kg/edit?usp=drive_link")
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
