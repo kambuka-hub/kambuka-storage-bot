@@ -14,17 +14,16 @@ from google.oauth2.service_account import Credentials
 import json
 import os
 
-# === GOOGLE SHEETS ===
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
-client = gspread.authorize(creds)
-sheet = client.open_by_url(SHEET_URL).sheet1
-
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
 
+# === GOOGLE SHEETS ===
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_file("service_account.json", scopes=scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_url(SHEET_URL).sheet1
 
 # === ЛОГИ ===
 logging.basicConfig(level=logging.INFO)
