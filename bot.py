@@ -1,19 +1,9 @@
-import logging
-from uuid import uuid4
-from telegram import Update, ReplyKeyboardMarkup, InlineQueryResultArticle, InputTextMessageContent
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-    InlineQueryHandler,
-)
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import gspread
 from google.oauth2.service_account import Credentials
-import json
 import os
-
+import logging
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -29,65 +19,76 @@ sheet = client.open_by_url(SHEET_URL).sheet1
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === ЧТЕНИЕ ДАННЫХ ===
-def get_data():
-    return sheet.get_all_records()
+# === КОМАНДЫ ===
+MENU_KEYBOARD = ReplyKeyboardMarkup([
+    ["🔍 Найти товар"],
+    ["➕ Добавить товар"]
+], resize_keyboard=True)
 
-# === /start ===
+user_states = {}  # user_id -> "adding" or None
+temp_data = {}     # user_id -> dict
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [["🔍 Найти товар", "📋 Показать всё"], ["ℹ️ Помощь"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("Привет! Я бот склада KAMBUKA. Найду, где лежит любой товар 📦", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "Добро пожаловать в Kambuka Storage Bot!\nВыберите действие:",
+        reply_markup=MENU_KEYBOARD
+    )
 
-# === ОБРАБОТКА СООБЩЕНИЙ ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.message.text.lower()
-    data = get_data()
-    results = []
+    user_id = update.message.from_user.id
+    text = update.message.text.strip()
 
-    if "помощь" in query:
-        await update.message.reply_text("Напиши название товара, и я скажу, где он лежит.")
-        return
+    if text == "🔍 Найти товар":
+        await update.message.reply_text("Введите название товара для поиска:")
+        user_states[user_id] = "search"
 
-    if "показать всё" in query:
-        lines = [f"📦 {r['Что']} — 🗂 {r['Место']}" for r in data[:20]]
-        await update.message.reply_text("\n".join(lines))
-        return
+    elif text == "➕ Добавить товар":
+        temp_data[user_id] = {}
+        user_states[user_id] = "adding_1"
+        await update.message.reply_text("Введите Место (например, A1_001):")
 
-    for row in data:
-        if query in row['Что'].lower() or query in row['Описание'].lower():
-            results.append(f"📦 {row['Что']}\n🗂 {row['Место']}\n📄 {row['Описание']}")
+    elif user_states.get(user_id) == "search":
+        data = sheet.get_all_records()
+        results = []
+        for row in data:
+            row = {k.strip(): v for k, v in row.items()}
+            if text.lower() in row.get("Что", "").lower():
+                results.append(f"📦 {row.get('Что')}\n📍 {row.get('Место')}\n📝 {row.get('Описание')}")
+        if results:
+            await update.message.reply_text("\n\n".join(results))
+        else:
+            await update.message.reply_text("Ничего не найдено.")
+        user_states[user_id] = None
 
-    if results:
-        await update.message.reply_text("🔍 Найдено:\n" + "\n\n".join(results))
+    elif user_states.get(user_id) == "adding_1":
+        temp_data[user_id]["Место"] = text
+        user_states[user_id] = "adding_2"
+        await update.message.reply_text("Введите Что (название товара):")
+
+    elif user_states.get(user_id) == "adding_2":
+        temp_data[user_id]["Что"] = text
+        user_states[user_id] = "adding_3"
+        await update.message.reply_text("Введите Описание:")
+
+    elif user_states.get(user_id) == "adding_3":
+        temp_data[user_id]["Описание"] = text
+        sheet.append_row([
+            temp_data[user_id].get("Место"),
+            temp_data[user_id].get("Что"),
+            temp_data[user_id].get("Описание"),
+            ""
+        ])
+        await update.message.reply_text("✅ Товар добавлен!", reply_markup=MENU_KEYBOARD)
+        user_states[user_id] = None
+        temp_data.pop(user_id, None)
+
     else:
-        await update.message.reply_text("❌ Ничего не найдено.")
-
-# === INLINE ===
-async def inlinequery(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.inline_query.query.lower()
-    data = get_data()
-    results = []
-
-    for row in data:
-        if query in row['Что'].lower():
-            results.append(
-                InlineQueryResultArticle(
-                    id=str(uuid4()),
-                    title=f"{row['Что']}",
-                    description=f"{row['Место']} — {row['Описание']}",
-                    input_message_content=InputTextMessageContent(
-                        message_text=f"📦 {row['Что']}\n🗂 {row['Место']}\n📄 {row['Описание']}"
-                    )
-                )
-            )
-
-    await update.inline_query.answer(results[:10], cache_time=0)
+        await update.message.reply_text("Выберите действие из меню.", reply_markup=MENU_KEYBOARD)
 
 # === ЗАПУСК ===
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(InlineQueryHandler(inlinequery))
     app.run_polling()
