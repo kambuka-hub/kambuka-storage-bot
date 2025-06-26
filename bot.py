@@ -19,76 +19,87 @@ sheet = client.open_by_url(SHEET_URL).sheet1
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === КОМАНДЫ ===
-MENU_KEYBOARD = ReplyKeyboardMarkup([
-    ["🔍 Найти товар"],
-    ["➕ Добавить товар"]
-], resize_keyboard=True)
+# === ЛОГИ ===
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-user_states = {}  # user_id -> "adding" or None
-temp_data = {}     # user_id -> dict
+# === ЭТАПЫ ДИАЛОГА ===
+WHAT, PLACE, NOTE, CONFIRM_ADD = range(4)
 
+# === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Добро пожаловать в Kambuka Storage Bot!\nВыберите действие:",
-        reply_markup=MENU_KEYBOARD
-    )
+    await update.message.reply_text("Привет! Напиши название или часть названия товара — и я постараюсь его найти.")
 
+# === ПОИСК ===
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = update.message.text.strip()
+    text = update.message.text.lower()
+    rows = sheet.get_all_records()
+    results = []
 
-    if text == "🔍 Найти товар":
-        await update.message.reply_text("Введите название товара для поиска:")
-        user_states[user_id] = "search"
+    for row in rows:
+        row = {k.strip(): str(v).strip() for k, v in row.items()}
+        if any(text in str(value).lower() for value in row.values()):
+            results.append(f"📦 {row.get('Что', '—')}\n📍 {row.get('Место', '—')}\n📝 {row.get('Описание', '—')}")
 
-    elif text == "➕ Добавить товар":
-        temp_data[user_id] = {}
-        user_states[user_id] = "adding_1"
-        await update.message.reply_text("Введите Место (например, A1_001):")
-
-    elif user_states.get(user_id) == "search":
-        data = sheet.get_all_records()
-        results = []
-        for row in data:
-            row = {k.strip(): v for k, v in row.items()}
-            if text.lower() in row.get("Что", "").lower():
-                results.append(f"📦 {row.get('Что')}\n📍 {row.get('Место')}\n📝 {row.get('Описание')}")
-        if results:
-            await update.message.reply_text("\n\n".join(results))
-        else:
-            await update.message.reply_text("Ничего не найдено.")
-        user_states[user_id] = None
-
-    elif user_states.get(user_id) == "adding_1":
-        temp_data[user_id]["Место"] = text
-        user_states[user_id] = "adding_2"
-        await update.message.reply_text("Введите Что (название товара):")
-
-    elif user_states.get(user_id) == "adding_2":
-        temp_data[user_id]["Что"] = text
-        user_states[user_id] = "adding_3"
-        await update.message.reply_text("Введите Описание:")
-
-    elif user_states.get(user_id) == "adding_3":
-        temp_data[user_id]["Описание"] = text
-        sheet.append_row([
-            temp_data[user_id].get("Место"),
-            temp_data[user_id].get("Что"),
-            temp_data[user_id].get("Описание"),
-            ""
-        ])
-        await update.message.reply_text("✅ Товар добавлен!", reply_markup=MENU_KEYBOARD)
-        user_states[user_id] = None
-        temp_data.pop(user_id, None)
-
+    if results:
+        await update.message.reply_text("\n\n".join(results))
     else:
-        await update.message.reply_text("Выберите действие из меню.", reply_markup=MENU_KEYBOARD)
+        context.user_data['search_term'] = text
+        keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text("❌ Ничего не найдено. Хотите добавить этот товар?", reply_markup=keyboard)
+        return CONFIRM_ADD
+
+# === ПОДТВЕРЖДЕНИЕ ДОБАВЛЕНИЯ ===
+async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    answer = update.message.text.strip().lower()
+    if answer == "да":
+        context.user_data['what'] = context.user_data.get('search_term', '')
+        await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=ReplyKeyboardRemove())
+        return PLACE
+    else:
+        await update.message.reply_text("Хорошо. Если что — просто напиши другой запрос.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
+
+# === ДОБАВЛЕНИЕ ТОВАРА ===
+async def add_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['place'] = update.message.text
+    await update.message.reply_text("Добавь описание или комментарий 📝")
+    return NOTE
+
+async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    what = context.user_data.get('what', '')
+    place = context.user_data.get('place', '')
+    note = update.message.text
+    try:
+        sheet.append_row([what, place, note])
+        await update.message.reply_text("✅ Товар добавлен!")
+    except Exception as e:
+        logging.exception("Ошибка при добавлении товара:")
+        await update.message.reply_text("❌ Не удалось добавить товар.")
+    return ConversationHandler.END
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Отменено.", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
 
 # === ЗАПУСК ===
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
+        states={
+            CONFIRM_ADD: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add)],
+            PLACE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_place)],
+            NOTE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv_handler)
+
+    app.run_polling()
 
 if __name__ == "__main__":
-    app.run_polling()
+    main()
