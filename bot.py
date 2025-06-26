@@ -81,7 +81,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         context.user_data['what'] = text
-        funny = await get_funny_reply(f"Придумай весёлую фразу про то, что товара с названием '{text}' не существует на складе Камбука.", update.effective_chat.id)
+        funny = await get_funny_reply(
+            f"Придумай весёлую фразу про то, что товара с названием '{text}' не существует на складе Камбука.",
+            chat_id=update.effective_chat.id if update.effective_chat else None
+        )
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text(f"{funny}\nХочешь добавить его на склад?", reply_markup=keyboard)
         return CONFIRM_ADD
@@ -140,6 +143,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === FAKE WEB SERVER FOR RENDER ===
 flask_app = Flask(__name__)
+
 @flask_app.route('/')
 def index():
     return 'Kambuka bot is alive!'
@@ -153,20 +157,37 @@ def main():
     threading.Thread(target=run_flask).start()
 
     app = ApplicationBuilder().token(TOKEN).build()
+
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
-            CONFIRM_ADD: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add)],
-            CONFIRM_NAME: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name)],
-            WHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
-            PLACE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_place)],
-            NOTE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note)],
+            CONFIRM_ADD: [
+            MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
+            CommandHandler("cancel", cancel)
+        ],
+            CONFIRM_NAME: [
+            MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name),
+            CommandHandler("cancel", cancel)
+        ],
+            WHAT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name),
+            CommandHandler("cancel", cancel)
+        ],
+            PLACE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, add_place),
+            CommandHandler("cancel", cancel)
+        ],
+            NOTE: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, add_note),
+            CommandHandler("cancel", cancel)
+        ],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
+
     app.run_polling()
 
 if __name__ == "__main__":
