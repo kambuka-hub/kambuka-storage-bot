@@ -1,3 +1,8 @@
+import os
+import logging
+import gspread
+from google.oauth2.service_account import Credentials
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -6,7 +11,6 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -17,10 +21,6 @@ scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/au
 creds = Credentials.from_service_account_file("/etc/secrets/service_account.json", scopes=scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_url(SHEET_URL).sheet1
-
-# === ЛОГИ ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # === ЛОГИ ===
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +48,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n\n".join(results))
     else:
         context.user_data['search_term'] = text
-        keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
+        keyboard = ReplyKeyboardMarkup([['Да', 'Нет']], resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("❌ Ничего не найдено. Хотите добавить этот товар?", reply_markup=keyboard)
         return CONFIRM_ADD
 
