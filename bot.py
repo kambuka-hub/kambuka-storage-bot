@@ -39,7 +39,9 @@ async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
         response = together_client.chat.completions.create(
             model="deepseek-ai/DeepSeek-V3",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
         )
         return response.choices[0].message.content
     except Exception as e:
