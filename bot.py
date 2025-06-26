@@ -8,7 +8,7 @@ import logging
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
-SERVICE_KEY_PATH = "/etc/secrets/service_account.json"
+SERVICE_KEY_PATH = "service_account.json"
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
