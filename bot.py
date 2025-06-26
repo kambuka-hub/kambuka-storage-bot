@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # === ЭТАПЫ ДИАЛОГА ===
-WHAT, PLACE, NOTE, CONFIRM_ADD = range(4)
+WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 
 # === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -48,6 +48,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if results:
         await update.message.reply_text("\n\n".join(results))
+        return ConversationHandler.END
     else:
         context.user_data['what'] = text
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
@@ -58,32 +59,50 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = update.message.text.strip().lower()
     if answer == "да":
-        keyboard = ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True)
-        await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=keyboard)
-        return PLACE
+        what = context.user_data.get('what', '')
+        keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"Я правильно понял, что товар с названием /{what}/ нужно добавить?", reply_markup=keyboard)
+        return CONFIRM_NAME
     else:
         await update.message.reply_text("Хорошо. Если что — просто напиши другой запрос.", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
 
-# === ДОБАВЛЕНИЕ ТОВАРА ===
+# === ПОДТВЕРЖДЕНИЕ ИМЕНИ ===
+async def confirm_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    answer = update.message.text.strip().lower()
+    if answer == "да":
+        await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=ReplyKeyboardRemove())
+        return PLACE
+    else:
+        await update.message.reply_text("Хорошо. Напиши правильное название товара: 📦")
+        return WHAT
+
+# === ЗАДАТЬ НАЗВАНИЕ ПОВТОРНО ===
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['what'] = update.message.text.strip()
+    await update.message.reply_text("На какой полке он лежит? 📍")
+    return PLACE
+
+# === ДОБАВЛЕНИЕ ПОЛКИ ===
 async def add_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['place'] = update.message.text.strip()
-    keyboard = ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True)
-    await update.message.reply_text("Добавь описание или комментарий 📜", reply_markup=keyboard)
+    await update.message.reply_text("Добавь описание или комментарий 📜")
     return NOTE
 
+# === ДОБАВЛЕНИЕ ОПИСАНИЯ ===
 async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
     what = context.user_data.get('what', '')
     place = context.user_data.get('place', '')
     note = update.message.text.strip()
     try:
-        sheet.append_row([place, what, note])  # правильный порядок: Место, Что, Описание
+        sheet.append_row([place, what, note])
         await update.message.reply_text("✅ Товар добавлен!", reply_markup=ReplyKeyboardRemove())
     except Exception as e:
         logging.exception("Ошибка при добавлении товара:")
         await update.message.reply_text("❌ Не удалось добавить товар.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
+# === ОТМЕНА ===
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Добавление отменено.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
@@ -108,18 +127,11 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
-            CONFIRM_ADD: [
-                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
-                CommandHandler("cancel", cancel)
-            ],
-            PLACE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, add_place),
-                CommandHandler("cancel", cancel)
-            ],
-            NOTE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, add_note),
-                CommandHandler("cancel", cancel)
-            ],
+            CONFIRM_ADD: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add)],
+            CONFIRM_NAME: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name)],
+            WHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            PLACE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_place)],
+            NOTE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note)],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
