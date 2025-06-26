@@ -13,17 +13,13 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
-import openai
-import asyncio
+from together import Together
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
-if "OPENAI_API_KEY" in os.environ:
-    openai.api_key = os.environ["OPENAI_API_KEY"]
-else:
-    print("❌ OPENAI_API_KEY is missing. GPT не будет работать.")
-    openai.api_key = None
+TOGETHER_API_KEY = os.environ.get("TOGETHER_API_KEY")
+together_client = Together(api_key=TOGETHER_API_KEY)
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -41,21 +37,17 @@ WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 # === GPT ОТВЕТ ===
 async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
-        client = openai.OpenAI()
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+        response = together_client.chat.completions.create(
+            model="deepseek-ai/DeepSeek-V3",
             messages=[
-                {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
+                {"role": "system", "content": "Ты весёлый, креативный помощник склада KAMBUKA. Отвечай смешно, но понятно, немного с сарказмом"},
                 {"role": "user", "content": prompt}
-            ],
-            max_tokens=60,
-            temperature=0.9
+            ]
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.exception("Ошибка GPT:")
-        pass  # отключено уведомление через чат
-        return f"🤖 Не могу пошутить. Ошибка: {e}"
+        return f"🤖 GPT не сработал: {e}"
 
 # === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -158,25 +150,25 @@ def main():
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
             CONFIRM_ADD: [
-            MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
-            CommandHandler("cancel", cancel)
-        ],
+                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
+                CommandHandler("cancel", cancel)
+            ],
             CONFIRM_NAME: [
-            MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name),
-            CommandHandler("cancel", cancel)
-        ],
+                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name),
+                CommandHandler("cancel", cancel)
+            ],
             WHAT: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name),
-            CommandHandler("cancel", cancel)
-        ],
+                MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name),
+                CommandHandler("cancel", cancel)
+            ],
             PLACE: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, add_place),
-            CommandHandler("cancel", cancel)
-        ],
+                MessageHandler(filters.TEXT & ~filters.COMMAND, add_place),
+                CommandHandler("cancel", cancel)
+            ],
             NOTE: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, add_note),
-            CommandHandler("cancel", cancel)
-        ],
+                MessageHandler(filters.TEXT & ~filters.COMMAND, add_note),
+                CommandHandler("cancel", cancel)
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
