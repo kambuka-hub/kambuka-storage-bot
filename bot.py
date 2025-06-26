@@ -44,15 +44,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for row in rows:
         row = {k.strip(): str(v).strip() for k, v in row.items()}
         if any(text in str(value).lower() for value in row.values()):
-            results.append(f"📦 {row.get('Что', '—')}\n📍 {row.get('Место', '—')}\n📝 {row.get('Описание', '—')}")
+            results.append(f"📦 {row.get('Что', '—')}\n📍 {row.get('Место', '—')}\n📜 {row.get('Описание', '—')}")
 
     if results:
         await update.message.reply_text("\n\n".join(results))
     else:
         context.user_data['search_term'] = text
-        keyboard = ReplyKeyboardMarkup([['Да', 'Нет']], resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(f"❌ Я правильно понял, что товара с названием /{text}/ нет на складе? Мне с таким названием добавить или с другим?", reply_markup=keyboard)
+        keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"❌ Ничего не найдено. Хотите добавить товар с таким названием /{text}/?", reply_markup=keyboard)
+        return CONFIRM_ADD
+
+# === ПОДТВЕРЖДЕНИЕ ДОБАВЛЕНИЯ ===
+async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    answer = update.message.text.strip().lower()
+    if answer == "да":
+        keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"❌ Я правильно понял, что товара с названием /{context.user_data['search_term']}/ нет на складе? Мне с таким названием добавить или с другим?", reply_markup=keyboard)
         return CONFIRM_NAME
+    else:
+        await update.message.reply_text("Хорошо. Если что — просто напиши другой запрос.", reply_markup=ReplyKeyboardRemove())
+        return ConversationHandler.END
 
 # === ПОДТВЕРЖДЕНИЕ НАЗВАНИЯ ===
 async def confirm_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -70,7 +81,7 @@ async def confirm_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['place'] = update.message.text
     keyboard = ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True)
-    await update.message.reply_text("Добавь описание или комментарий 📝", reply_markup=keyboard)
+    await update.message.reply_text("Добавь описание или комментарий 📜", reply_markup=keyboard)
     return NOTE
 
 async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -109,16 +120,16 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
+            CONFIRM_ADD: [
+                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
+                CommandHandler("cancel", cancel)
+            ],
             CONFIRM_NAME: [
                 MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name),
                 CommandHandler("cancel", cancel)
             ],
             WHAT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
-                CommandHandler("cancel", cancel)
-            ],
-            CONFIRM_ADD: [
-                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_name),
                 CommandHandler("cancel", cancel)
             ],
             PLACE: [
