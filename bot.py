@@ -1,6 +1,8 @@
 import os
 import logging
 import gspread
+import threading
+from flask import Flask
 from google.oauth2.service_account import Credentials
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
@@ -85,8 +87,22 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Отменено.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-# === ЗАПУСК ===
+# === FAKE WEB SERVER FOR RENDER ===
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def index():
+    return 'Kambuka bot is alive!'
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    flask_app.run(host='0.0.0.0', port=port)
+
+# === ЗАПУСК ВСЕГО ===
 def main():
+    # запускаем Flask, чтобы Render не закрывал сервис
+    threading.Thread(target=run_flask).start()
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -101,7 +117,6 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
-
     app.run_polling()
 
 if __name__ == "__main__":
