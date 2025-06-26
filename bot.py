@@ -4,7 +4,7 @@ import gspread
 import threading
 from flask import Flask
 from google.oauth2.service_account import Credentials
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, Bot
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -14,7 +14,7 @@ from telegram.ext import (
     ConversationHandler
 )
 import openai
-import random
+import asyncio
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -23,10 +23,8 @@ if "OPENAI_API_KEY" in os.environ:
     openai.api_key = os.environ["OPENAI_API_KEY"]
 else:
     async def notify_env_missing():
-        from telegram import Bot
         bot = Bot(token=TOKEN)
-        await bot.send_message(chat_id=os.environ.get("DEBUG_CHAT_ID", ""), text="❌ Переменная окружения OPENAI_API_KEY не установлена. Проверь настройки.")
-    import asyncio
+        await bot.send_message(chat_id=os.environ.get("DEBUG_CHAT_ID", ""), text="❌ Переменная окружения OPENAI_API_KEY не установлена.")
     asyncio.run(notify_env_missing())
     openai.api_key = None
 
@@ -43,33 +41,25 @@ logger = logging.getLogger(__name__)
 # === ЭТАПЫ ДИАЛОГА ===
 WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 
-# === ФУНКЦИЯ GPT ===
+# === GPT ОТВЕТ ===
 async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=60,
-            temperature=0.9,
+            temperature=0.9
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.exception("Ошибка GPT:")
-        try:
-            await prompt_user_error(str(e), chat_id)
-        except Exception:
-            pass
+        if chat_id:
+            await Bot(token=TOKEN).send_message(chat_id=chat_id, text=f"🤖 Ошибка при генерации ответа: {e}")
         return f"🤖 Не могу пошутить. Ошибка: {e}"
-
-async def prompt_user_error(error_text: str, user_chat_id: str = None):
-    from telegram import Bot
-    bot = Bot(token=TOKEN)
-    debug_chat_id = os.environ.get("DEBUG_CHAT_ID")
-        if user_chat_id:
-        await bot.send_message(chat_id=user_chat_id, text=f"🤖 Ошибка при генерации ответа: {error_text}")
 
 # === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -91,7 +81,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         context.user_data['what'] = text
-        funny = await get_funny_reply(f"Придумай весёлую фразу про то, что товара с названием '{text}' не существует на складе Камбука.")
+        funny = await get_funny_reply(f"Придумай весёлую фразу про то, что товара с названием '{text}' не существует на складе Камбука.", update.effective_chat.id)
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text(f"{funny}\nХочешь добавить его на склад?", reply_markup=keyboard)
         return CONFIRM_ADD
@@ -139,7 +129,7 @@ async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sheet.append_row([place, what, note])
         await update.message.reply_text("✅ Товар добавлен!", reply_markup=ReplyKeyboardRemove())
     except Exception as e:
-        logging.exception("Ошибка при добавлении товара:")
+        logger.exception("Ошибка при добавлении товара:")
         await update.message.reply_text("❌ Не удалось добавить товар.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
@@ -150,7 +140,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === FAKE WEB SERVER FOR RENDER ===
 flask_app = Flask(__name__)
-
 @flask_app.route('/')
 def index():
     return 'Kambuka bot is alive!'
@@ -159,12 +148,11 @@ def run_flask():
     port = int(os.environ.get("PORT", 10000))
     flask_app.run(host='0.0.0.0', port=port)
 
-# === ЗАПУСК ВСЕГО ===
+# === ЗАПУСК ===
 def main():
     threading.Thread(target=run_flask).start()
 
     app = ApplicationBuilder().token(TOKEN).build()
-
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
@@ -179,7 +167,6 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
-
     app.run_polling()
 
 if __name__ == "__main__":
