@@ -22,10 +22,7 @@ SHEET_URL = os.environ.get("SHEET_URL")
 if "OPENAI_API_KEY" in os.environ:
     openai.api_key = os.environ["OPENAI_API_KEY"]
 else:
-    async def notify_env_missing():
-        bot = Bot(token=TOKEN)
-        await bot.send_message(chat_id=os.environ.get("DEBUG_CHAT_ID", ""), text="❌ Переменная окружения OPENAI_API_KEY не установлена.")
-    asyncio.run(notify_env_missing())
+    print("❌ OPENAI_API_KEY is missing. GPT не будет работать.")
     openai.api_key = None
 
 # === GOOGLE SHEETS ===
@@ -57,8 +54,7 @@ async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.exception("Ошибка GPT:")
-        if chat_id:
-            await Bot(token=TOKEN).send_message(chat_id=chat_id, text=f"🤖 Ошибка при генерации ответа: {e}")
+        pass  # отключено уведомление через чат
         return f"🤖 Не могу пошутить. Ошибка: {e}"
 
 # === СТАРТ ===
