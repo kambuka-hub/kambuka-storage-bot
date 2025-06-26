@@ -2,4 +2,4 @@ python-telegram-bot==20.3
 gspread==6.2.1
 google-auth==2.40.0
 flask
-openai>=1.0.0
+together==0.2.10
