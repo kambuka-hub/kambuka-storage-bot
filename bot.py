@@ -37,14 +37,14 @@ WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 # === GPT ОТВЕТ ===
 async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
-        response = together_client.chat.completions.create(
+        response = together_client.chat_completions.create(
             model="deepseek-ai/DeepSeek-V3",
             messages=[
                 {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
                 {"role": "user", "content": prompt}
             ]
         )
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.exception("Ошибка GPT:")
         return f"🤖 GPT не сработал: {e}"
