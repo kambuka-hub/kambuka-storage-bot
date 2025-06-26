@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 
 # === ФУНКЦИЯ GPT ===
-async def get_funny_reply(prompt: str) -> str:
+async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -59,20 +59,17 @@ async def get_funny_reply(prompt: str) -> str:
     except Exception as e:
         logger.exception("Ошибка GPT:")
         try:
-            await prompt_user_error(str(e))
+            await prompt_user_error(str(e), chat_id)
         except Exception:
             pass
         return f"🤖 Не могу пошутить. Ошибка: {e}"
 
-async def prompt_user_error(error_text: str):
+async def prompt_user_error(error_text: str, user_chat_id: str = None):
     from telegram import Bot
     bot = Bot(token=TOKEN)
     debug_chat_id = os.environ.get("DEBUG_CHAT_ID")
-    if debug_chat_id:
-        await bot.send_message(chat_id=debug_chat_id, text=f"❌ GPT Error: {error_text}")
-    except Exception as e:
-        logger.exception("Ошибка GPT:")
-        return "🤖 Мозг выключен, смешно не получилось..."
+        if user_chat_id:
+        await bot.send_message(chat_id=user_chat_id, text=f"🤖 Ошибка при генерации ответа: {error_text}")
 
 # === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
