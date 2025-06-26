@@ -19,7 +19,7 @@ from together import Together
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
 TOGETHER_API_KEY = os.environ.get("TOGETHER_API_KEY")
-together_client = Together(api_key=TOGETHER_API_KEY)
+together_client = Together()
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -40,7 +40,7 @@ async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
         response = together_client.chat.completions.create(
             model="deepseek-ai/DeepSeek-V3",
             messages=[
-                {"role": "system", "content": "Ты весёлый, креативный помощник склада KAMBUKA. Отвечай смешно, но понятно, немного с сарказмом"},
+                {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
                 {"role": "user", "content": prompt}
             ]
         )
