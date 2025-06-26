@@ -19,7 +19,7 @@ from together import Together
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
 TOGETHER_API_KEY = os.environ.get("TOGETHER_API_KEY")
-together_client = Together()
+together_client = Together()  # Ключ читается из переменной окружения
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -37,14 +37,11 @@ WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
 # === GPT ОТВЕТ ===
 async def get_funny_reply(prompt: str, chat_id: str = None) -> str:
     try:
-        response = together_client.chat_completions.create(
+        response = together_client.chat.completions.create(
             model="deepseek-ai/DeepSeek-V3",
-            messages=[
-                {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
-                {"role": "user", "content": prompt}
-            ]
+            messages=[{"role": "user", "content": prompt}]
         )
-        return response["choices"][0]["message"]["content"].strip()
+        return response.choices[0].message.content
     except Exception as e:
         logger.exception("Ошибка GPT:")
         return f"🤖 GPT не сработал: {e}"
