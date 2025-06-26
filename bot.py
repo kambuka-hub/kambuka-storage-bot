@@ -19,7 +19,16 @@ import random
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+if "OPENAI_API_KEY" in os.environ:
+    openai.api_key = os.environ["OPENAI_API_KEY"]
+else:
+    async def notify_env_missing():
+        from telegram import Bot
+        bot = Bot(token=TOKEN)
+        await bot.send_message(chat_id=os.environ.get("DEBUG_CHAT_ID", ""), text="❌ Переменная окружения OPENAI_API_KEY не установлена. Проверь настройки.")
+    import asyncio
+    asyncio.run(notify_env_missing())
+    openai.api_key = None
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -47,6 +56,20 @@ async def get_funny_reply(prompt: str) -> str:
             temperature=0.9,
         )
         return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.exception("Ошибка GPT:")
+        try:
+            await prompt_user_error(str(e))
+        except Exception:
+            pass
+        return f"🤖 Не могу пошутить. Ошибка: {e}"
+
+async def prompt_user_error(error_text: str):
+    from telegram import Bot
+    bot = Bot(token=TOKEN)
+    debug_chat_id = os.environ.get("DEBUG_CHAT_ID")
+    if debug_chat_id:
+        await bot.send_message(chat_id=debug_chat_id, text=f"❌ GPT Error: {error_text}")
     except Exception as e:
         logger.exception("Ошибка GPT:")
         return "🤖 Мозг выключен, смешно не получилось..."
