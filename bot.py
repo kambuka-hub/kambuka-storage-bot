@@ -13,10 +13,13 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler
 )
+import openai
+import random
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
 SHEET_URL = os.environ.get("SHEET_URL")
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # === GOOGLE SHEETS ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -30,6 +33,23 @@ logger = logging.getLogger(__name__)
 
 # === ЭТАПЫ ДИАЛОГА ===
 WHAT, CONFIRM_NAME, PLACE, NOTE, CONFIRM_ADD = range(5)
+
+# === ФУНКЦИЯ GPT ===
+async def get_funny_reply(prompt: str) -> str:
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты весёлый, креативный помощник склада Камбука. Отвечай смешно, но понятно."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=60,
+            temperature=0.9,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.exception("Ошибка GPT:")
+        return "🤖 Мозг выключен, смешно не получилось..."
 
 # === СТАРТ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,8 +71,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         context.user_data['what'] = text
+        funny = await get_funny_reply(f"Придумай весёлую фразу про то, что товара с названием '{text}' не существует на складе Камбука.")
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(f"❌ Нифига не нашел, может Алекс выкинул? Хочешь добавить его на склад?", reply_markup=keyboard)
+        await update.message.reply_text(f"{funny}\nХочешь добавить его на склад?", reply_markup=keyboard)
         return CONFIRM_ADD
 
 # === ПОДТВЕРЖДЕНИЕ ДОБАВЛЕНИЯ ===
@@ -74,7 +95,7 @@ async def confirm_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=ReplyKeyboardRemove())
         return PLACE
     else:
-        await update.message.reply_text("Хорошо. Напиши правильное название товара: 📦")
+        await update.message.reply_text("Хорошо. Напиши правильное название товара: 📦", reply_markup=ReplyKeyboardRemove())
         return WHAT
 
 # === ЗАДАТЬ НАЗВАНИЕ ПОВТОРНО ===
