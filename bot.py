@@ -1,9 +1,12 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-import gspread
-from google.oauth2.service_account import Credentials
-import os
-import logging
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler
+)
+
 
 # === НАСТРОЙКИ ===
 TOKEN = os.environ.get("BOT_TOKEN")
