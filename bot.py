@@ -52,7 +52,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         context.user_data['what'] = text
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(f"❌ Товар /{text}/ не найден. Хотите добавить его на склад?", reply_markup=keyboard)
+        await update.message.reply_text(f"❌ Нифига не нашел, может Алекс выкинул? Хочешь добавить его на склад?", reply_markup=keyboard)
         return CONFIRM_ADD
 
 # === ПОДТВЕРЖДЕНИЕ ДОБАВЛЕНИЯ ===
@@ -61,7 +61,7 @@ async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if answer == "да":
         what = context.user_data.get('what', '')
         keyboard = ReplyKeyboardMarkup([["Да", "Нет"]], resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(f"Я правильно понял, что товар с названием /{what}/ нужно добавить?", reply_markup=keyboard)
+        await update.message.reply_text(f"Я правильно понял, что товар будет с названием /{what}/?", reply_markup=keyboard)
         return CONFIRM_NAME
     else:
         await update.message.reply_text("Хорошо. Если что — просто напиши другой запрос.", reply_markup=ReplyKeyboardRemove())
