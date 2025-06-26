@@ -59,7 +59,8 @@ async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     answer = update.message.text.strip().lower()
     if answer == "да":
         context.user_data['what'] = context.user_data.get('search_term', '')
-        await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=ReplyKeyboardRemove())
+        keyboard = ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True)
+        await update.message.reply_text("На какой полке он лежит? 📍", reply_markup=keyboard)
         return PLACE
     else:
         await update.message.reply_text("Хорошо. Если что — просто напиши другой запрос.", reply_markup=ReplyKeyboardRemove())
@@ -68,7 +69,8 @@ async def confirm_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # === ДОБАВЛЕНИЕ ТОВАРА ===
 async def add_place(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['place'] = update.message.text
-    await update.message.reply_text("Добавь описание или комментарий 📝")
+    keyboard = ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True)
+    await update.message.reply_text("Добавь описание или комментарий 📝", reply_markup=keyboard)
     return NOTE
 
 async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -77,14 +79,14 @@ async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
     note = update.message.text
     try:
         sheet.append_row([what, place, note])
-        await update.message.reply_text("✅ Товар добавлен!")
+        await update.message.reply_text("✅ Товар добавлен!", reply_markup=ReplyKeyboardRemove())
     except Exception as e:
         logging.exception("Ошибка при добавлении товара:")
-        await update.message.reply_text("❌ Не удалось добавить товар.")
+        await update.message.reply_text("❌ Не удалось добавить товар.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Отменено.", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("❌ Добавление отменено.", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # === FAKE WEB SERVER FOR RENDER ===
@@ -100,7 +102,6 @@ def run_flask():
 
 # === ЗАПУСК ВСЕГО ===
 def main():
-    # запускаем Flask, чтобы Render не закрывал сервис
     threading.Thread(target=run_flask).start()
 
     app = ApplicationBuilder().token(TOKEN).build()
@@ -108,15 +109,25 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)],
         states={
-            CONFIRM_ADD: [MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add)],
-            PLACE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_place)],
-            NOTE: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_note)],
+            CONFIRM_ADD: [
+                MessageHandler(filters.Regex("^(Да|Нет)$"), confirm_add),
+                CommandHandler("cancel", cancel)
+            ],
+            PLACE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, add_place),
+                CommandHandler("cancel", cancel)
+            ],
+            NOTE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, add_note),
+                CommandHandler("cancel", cancel)
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
+
     app.run_polling()
 
 if __name__ == "__main__":
