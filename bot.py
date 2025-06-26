@@ -78,7 +78,7 @@ async def add_note(update: Update, context: ContextTypes.DEFAULT_TYPE):
     place = context.user_data.get('place', '')
     note = update.message.text
     try:
-        sheet.append_row([what, place, note])
+        sheet.append_row([place, what, note])  # правильный порядок: Место, Что, Описание
         await update.message.reply_text("✅ Товар добавлен!", reply_markup=ReplyKeyboardRemove())
     except Exception as e:
         logging.exception("Ошибка при добавлении товара:")
